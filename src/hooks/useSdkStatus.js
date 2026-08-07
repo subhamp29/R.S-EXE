@@ -37,6 +37,7 @@ export function useSdkStatus() {
   const fetchAll = async () => {
     if (isFetching.current) return;
     isFetching.current = true;
+    setError(null);
     try {
       const [sRes, pRes] = await Promise.all([
         api.checkInstallStatus(),
@@ -45,6 +46,7 @@ export function useSdkStatus() {
       if (sRes.ok) setStatus(sRes.output);
       else setError(sRes.error);
       if (pRes.ok) setPackages(pRes.output || []);
+      else setError(pRes.error || 'Failed to load SDK packages. Ensure cmdline-tools and JDK are installed.');
     } catch (e) {
       setError(String(e));
     } finally {

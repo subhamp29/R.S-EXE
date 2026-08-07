@@ -315,7 +315,11 @@ export default function SdkManager() {
         </div>
 
         {packages.length === 0 ? (
-          <p className="empty-text">No packages. Make sure cmdline-tools are installed and click Refresh.</p>
+          status && status.cmdline_tools ? (
+            <p className="empty-text">No packages loaded. The cmdline-tools are installed but <code>sdkmanager</code> may not be running correctly — verify the JDK is working (JAVA_HOME) and click Refresh, or reinstall cmdline-tools.</p>
+          ) : (
+            <p className="empty-text">No packages. Make sure cmdline-tools are installed and click Refresh.</p>
+          )
         ) : (
           <div className="sdk-package-list">
             {packages.filter((p) => {
