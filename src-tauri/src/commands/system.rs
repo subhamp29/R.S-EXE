@@ -604,7 +604,7 @@ async fn check_hypervisor_via_windows_features() -> Result<HypervisorStatus, Str
     if !bcd_output.status.success() {
         let stderr = String::from_utf8_lossy(&bcd_output.stderr);
         eprintln!("[DEBUG] bcdedit failed: {}", stderr);
-        return Err(format!("bcdenum failed: {}", stderr));
+        return Err(format!("bcdedit failed: {}", stderr));
     }
 
     let bcd_stdout = String::from_utf8_lossy(&bcd_output.stdout);
