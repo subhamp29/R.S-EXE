@@ -1,4 +1,5 @@
 #![allow(dependency_on_unit_never_type_fallback)]
+#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 mod commands;
 use commands::{
     get_app_version, get_system_info, check_hypervisor, detect_gpus,
