@@ -58,11 +58,6 @@ Pre-built binaries are available on the [Releases page](https://github.com/subha
 - **NSIS Installer** (`R.S EXE_0.1.0_x64-setup.exe`) — Interactive installer with Start Menu shortcuts
 - **MSI Installer** (`R.S EXE_0.1.0_x64_en-US.msi`) — For enterprise/group deployment
 
-## Screenshots
-
-![Dashboard](screenshot-dashboard.png)
-![Devices](screenshot-screen.png)
-
 ## License
 
 This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.

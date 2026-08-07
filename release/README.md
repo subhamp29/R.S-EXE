@@ -9,8 +9,6 @@ Production build artifacts for the R.S EXE Android Virtual Device (AVD) Manager.
 | `rs-exe.exe` | Standalone executable — double-click to run (no installer needed) | ~7.5 MB |
 | `R.S EXE_0.1.0_x64-setup.exe` | NSIS installer with Start Menu shortcut and uninstaller | ~2.4 MB |
 | `R.S EXE_0.1.0_x64_en-US.msi` | MSI installer for enterprise/group deployment | ~3.4 MB |
-| `screenshot-screen.png` | Sample screenshot from the Devices page | ~99 KB |
-| `screenshot-dashboard.png` | Sample screenshot from the Dashboard page | ~44 KB |
 
 ## Running on Other Devices
 
