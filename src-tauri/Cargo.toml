@@ -1,0 +1,43 @@
+[package]
+name = "rs-exe"
+version = "0.1.0"
+description = "Desktop Android Virtual Device (AVD) Manager"
+authors = ["Subham Mahapatra"]
+license = "MIT"
+edition = "2021"
+rust-version = "1.85"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sysinfo = "0.30"
+tokio = { version = "1", features = ["process", "sync", "fs", "io-util", "rt", "rt-multi-thread", "macros", "time"] }
+reqwest = { version = "0.12", default-features = false, features = ["stream", "json", "gzip", "brotli", "native-tls"] }
+zip = { version = "0.6", default-features = false, features = ["deflate"] }
+futures-util = "0.3"
+# Windows API for process priority elevation (HIGH_PRIORITY_CLASS).
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_System_ProcessStatus"] }
+# Phase 6 Tauri plugins.
+tauri-plugin-dialog = "2"
+tauri-plugin-shell = "2"
+tauri-plugin-opener = "2"
+# Single-instance lock — prevents two copies of R.S EXE from running.
+tauri-plugin-single-instance = "2"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+# ---------------------------------------------------------------------------
+# Release build profile — tuned for smaller, faster installer binaries.
+# ---------------------------------------------------------------------------
+[profile.release]
+opt-level = 3
+lto = "fat"
+strip = true
+panic = "abort"
+codegen-units = 1
