@@ -26,7 +26,6 @@ npm-debug.log*
 .kilo/
 
 # Build intermediate files (combined exe build scaffolding)
-release/combined_loader.cs
 release/combine.ps1
 release/combined.sed
 release/launcher.bat
