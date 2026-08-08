@@ -20,9 +20,9 @@ pub fn new_command<S: AsRef<std::ffi::OsStr>>(program: S) -> tokio::process::Com
     {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x08000000;
-        tokio::process::Command::from(
-            std::process::Command::new(program).creation_flags(CREATE_NO_WINDOW)
-        )
+        let mut cmd = std::process::Command::new(program);
+        cmd.creation_flags(CREATE_NO_WINDOW);
+        tokio::process::Command::from(cmd)
     }
     #[cfg(not(windows))]
     {

@@ -198,6 +198,7 @@ pub fn start_avd(name: String) -> CommandResult<bool> {
     // is completely silent (no console window) and survives app exit.
     #[cfg(windows)]
     {
+        use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x08000008); // CREATE_NO_WINDOW | DETACHED_PROCESS
     }
 
