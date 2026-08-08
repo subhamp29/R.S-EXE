@@ -8,6 +8,28 @@ pub mod emulator;
 
 pub use result::CommandResult;
 
+/// Create a `tokio::process::Command` with `CREATE_NO_WINDOW` on Windows.
+///
+/// Child processes (powershell, reg, adb, sdkmanager, etc.) inherit the parent's
+/// console-subsystem flag by default, so even with `#![windows_subsystem =
+/// "windows"]` on the main exe, subprocesses still flash console windows.
+/// This helper applies `CREATE_NO_WINDOW` (0x08000000) so every spawned child
+/// is completely silent — no CMD/PowerShell window, no flicker.
+pub fn new_command<S: AsRef<std::ffi::OsStr>>(program: S) -> tokio::process::Command {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        tokio::process::Command::from(
+            std::process::Command::new(program).creation_flags(CREATE_NO_WINDOW)
+        )
+    }
+    #[cfg(not(windows))]
+    {
+        tokio::process::Command::new(program)
+    }
+}
+
 pub use system::{get_system_info, detect_gpus, check_hypervisor, get_app_version, check_disk_space};
 pub use window::{window_minimize, window_maximize, window_close};
 

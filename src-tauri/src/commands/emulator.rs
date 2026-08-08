@@ -24,9 +24,9 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::Emitter;
 use tauri::Window;
 use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::Command;
 use tokio::sync::Mutex as TokioMutex;
 use tokio::time::timeout;
+use crate::commands::new_command;
 
 // ---------------------------------------------------------------------------
 // Shared state
@@ -142,12 +142,21 @@ pub async fn boot_avd(window: Window, name: String, options: Option<BootOptions>
     let mut env_pairs = paths::java_env_pairs();
     let emu_lib64 = paths::emulator_dir().join("lib64");
     let emu_lib = paths::emulator_dir().join("lib");
+    let java_bin = paths::jdk_dir().join("bin");
+    let platform_tools = paths::platform_tools_dir();
     let existing_path = std::env::var("PATH").unwrap_or_default();
+    // Include ALL necessary dirs: emulator libs, JDK bin, platform-tools (for adb),
+    // plus the existing PATH.  Previously this omitted platform-tools, so the
+    // emulator could not find adb.exe and never established an ADB connection.
     let ext_path = format!(
-        "{}{}{}{}{}",
+        "{}{}{}{}{}{}{}{}{}",
         emu_lib64.to_string_lossy(),
         std::path::MAIN_SEPARATOR,
         emu_lib.to_string_lossy(),
+        std::path::MAIN_SEPARATOR,
+        java_bin.to_string_lossy(),
+        std::path::MAIN_SEPARATOR,
+        platform_tools.to_string_lossy(),
         std::path::MAIN_SEPARATOR,
         existing_path
     );
@@ -158,7 +167,7 @@ pub async fn boot_avd(window: Window, name: String, options: Option<BootOptions>
         }
     }
 
-    let mut cmd = Command::new(&emu);
+    let mut cmd = new_command(&emu);
     cmd.envs(env_pairs);
     cmd.env("ANDROID_AVD_HOME", avd_dir.to_string_lossy().into_owned());
     cmd.arg("-avd").arg(&name);
@@ -289,6 +298,21 @@ pub async fn boot_avd(window: Window, name: String, options: Option<BootOptions>
     cmd.stdin(Stdio::null());
     cmd.stdout(Stdio::null());
     cmd.stderr(Stdio::piped());
+
+    // Ensure the ADB server is running before launching the emulator so that
+    // ADB connection is established promptly after boot. Without this, the
+    // emulator may wait indefinitely for the ADB daemon.
+    if let Ok(adb) = adb_path() {
+        if adb.is_file() {
+            eprintln!("[EMU] boot_avd: starting ADB server...");
+            let _ = new_command(&adb)
+                .arg("start-server")
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .output()
+                .await;
+        }
+    }
 
              match cmd.spawn() {
                 Ok(child) => {
@@ -1038,7 +1062,7 @@ pub async fn save_snapshot(window: Window, avd_name: String) -> CommandResult<bo
     // Run `adb -s <serial> emu avd snapshot save quickboot`
     let output = match timeout(
         Duration::from_secs(60),
-        tokio::process::Command::new(&adb)
+        new_command(&adb)
             .args(["-s", &serial, "emu", "avd", "snapshot", "save", "quickboot"])
             .output(),
     )
@@ -1103,8 +1127,10 @@ pub async fn save_snapshot(window: Window, avd_name: String) -> CommandResult<bo
 
 #[cfg(windows)]
 fn scan_for_orphan_qemu(avd_name: &str, when: &str) {
-    use std::process::Command;
-    let output = Command::new("tasklist")
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    let output = std::process::Command::new("tasklist")
+        .creation_flags(CREATE_NO_WINDOW)
         .args(["/FO", "CSV", "/NH"])
         .output();
 
@@ -1141,7 +1167,7 @@ fn adb_path() -> Result<PathBuf, String> {
 async fn adb_emulator_device_states(adb: &PathBuf) -> Vec<(String, String)> {
     let output = match timeout(
         Duration::from_secs(15),
-        tokio::process::Command::new(adb).args(["devices"]).output(),
+        new_command(adb).args(["devices"]).output(),
     )
     .await
     {
@@ -1195,7 +1221,7 @@ async fn find_emulator_serial(adb: &PathBuf, target_name: &str) -> Option<String
         // for this serial, skip to the next candidate rather than aborting.
         let name_output = match timeout(
             Duration::from_secs(10),
-            tokio::process::Command::new(adb)
+            new_command(adb)
                 .args(["-s", &serial, "emu", "avd", "name"])
                 .output(),
         )
@@ -1287,7 +1313,7 @@ async fn wait_for_device_ready(
 async fn run_adb_emu_kill(adb: &PathBuf, serial: &str) -> Result<bool, String> {
     let output = timeout(
         Duration::from_secs(10),
-        tokio::process::Command::new(adb)
+        new_command(adb)
             .args(["-s", serial, "emu", "kill"])
             .output(),
     )
@@ -1354,7 +1380,7 @@ pub async fn optimize_installed_apps(window: Window, avd_name: String) -> Comman
     );
 
     // List only third-party packages (-3).
-    let list_output = match tokio::process::Command::new(&adb)
+    let list_output = match new_command(&adb)
         .args(["-s", &serial, "shell", "pm", "list", "packages", "-3"])
         .output()
         .await
@@ -1414,7 +1440,7 @@ pub async fn optimize_installed_apps(window: Window, avd_name: String) -> Comman
             },
         );
 
-        let compile_result = tokio::process::Command::new(&adb)
+        let compile_result = new_command(&adb)
             .args(["-s", &serial, "shell", "cmd", "package", "compile", "-m", "speed", "-f", pkg])
             .output()
             .await;
@@ -1666,7 +1692,7 @@ async fn run_speed_mode(window: &Window, avd_name: &str) {
     };
 
     // Best-effort root: silently ignore failure (Google Play images won't allow it).
-    let _ = tokio::process::Command::new(&adb)
+    let _ = new_command(&adb)
         .args(["-s", &serial, "root"])
         .output()
         .await;
@@ -1680,7 +1706,7 @@ async fn run_speed_mode(window: &Window, avd_name: &str) {
         },
     );
 
-    let sf_result = tokio::process::Command::new(&adb)
+    let sf_result = new_command(&adb)
         .args(["-s", &serial, "shell", "service", "call", "SurfaceFlinger", "1008", "i32", "1"])
         .output()
         .await;
@@ -1764,7 +1790,7 @@ pub async fn install_apk(window: Window, avd_name: String, apk_path: String) -> 
 
     let output = match timeout(
         Duration::from_secs(120),
-        tokio::process::Command::new(&adb)
+        new_command(&adb)
             .args(["-s", &serial, "install", "-r", &apk_path])
             .output(),
     )
@@ -1886,7 +1912,7 @@ pub async fn list_installed_apps(window: Window, avd_name: String) -> CommandRes
     };
     eprintln!("[EMU] list_installed_apps: serial='{}'", serial);
 
-    let list_output = match tokio::process::Command::new(&adb)
+    let list_output = match new_command(&adb)
         .args(["-s", &serial, "shell", "pm", "list", "packages", "-3"])
         .output()
         .await
@@ -1930,7 +1956,7 @@ pub async fn list_installed_apps(window: Window, avd_name: String) -> CommandRes
 /// This is best-effort: returns None if the output format is unexpected or
 /// the command fails.
 async fn fetch_app_label(adb: &PathBuf, serial: &str, pkg: &str) -> Option<String> {
-    let output = match tokio::process::Command::new(adb)
+    let output = match new_command(adb)
         .args(["-s", serial, "shell", "dumpsys", "package", pkg])
         .output()
         .await
@@ -2010,7 +2036,7 @@ pub async fn uninstall_app(window: Window, avd_name: String, package_name: Strin
 
     let output = match timeout(
         Duration::from_secs(60),
-        tokio::process::Command::new(&adb)
+        new_command(&adb)
             .args(["-s", &serial, "uninstall", &package_name])
             .output(),
     )
@@ -2121,7 +2147,7 @@ pub async fn launch_app(window: Window, avd_name: String, package_name: String) 
     let monkey_attempt = async {
         let output = timeout(
             Duration::from_secs(30),
-            tokio::process::Command::new(&adb)
+            new_command(&adb)
                 .args([
                     "-s", &serial, "shell", "monkey",
                     "-p", &package_name,
@@ -2181,7 +2207,7 @@ pub async fn launch_app(window: Window, avd_name: String, package_name: String) 
     // Strategy 2: am start with MAIN/LAUNCHER intent.
     let am_output = match timeout(
         Duration::from_secs(30),
-        tokio::process::Command::new(&adb)
+        new_command(&adb)
             .args([
                 "-s", &serial, "shell", "am", "start",
                 "-a", "android.intent.action.MAIN",
@@ -2289,7 +2315,7 @@ pub async fn capture_screenshot(window: Window, avd_name: String) -> CommandResu
 
     let output = match timeout(
         Duration::from_secs(30),
-        tokio::process::Command::new(&adb)
+        new_command(&adb)
             .args(["-s", &serial, "exec-out", "screencap", "-p"])
             .output(),
     )

@@ -157,15 +157,24 @@ pub fn start_avd(name: String) -> CommandResult<bool> {
     // Build env: JAVA_HOME, ANDROID_HOME, ANDROID_SDK_ROOT, and extended PATH
     // (java bin + existing + emulator lib dirs for DLL resolution).
     let mut env_pairs = paths::java_env_pairs();
-    // Prepend emulator lib dirs to PATH so emulator.exe finds its DLLs.
+    // Prepend emulator lib dirs + JDK bin + platform-tools to PATH so:
+    //  - emulator.exe finds its DLLs (lib64/lib)
+    //  - java is available for any subprocess the emulator spawns
+    //  - adb.exe is available for the emulator's ADB connection
     let emu_lib64 = paths::emulator_dir().join("lib64");
     let emu_lib = paths::emulator_dir().join("lib");
+    let java_bin = paths::jdk_dir().join("bin");
+    let platform_tools = paths::platform_tools_dir();
     let existing_path = std::env::var("PATH").unwrap_or_default();
     let ext_path = format!(
-        "{}{}{}{}{}",
+        "{}{}{}{}{}{}{}{}{}",
         emu_lib64.to_string_lossy(),
         std::path::MAIN_SEPARATOR,
         emu_lib.to_string_lossy(),
+        std::path::MAIN_SEPARATOR,
+        java_bin.to_string_lossy(),
+        std::path::MAIN_SEPARATOR,
+        platform_tools.to_string_lossy(),
         std::path::MAIN_SEPARATOR,
         existing_path
     );
@@ -185,11 +194,11 @@ pub fn start_avd(name: String) -> CommandResult<bool> {
         .arg("host")
         .arg("-no-snapshot-load");
 
-    // On Windows, use DETACHED_PROCESS so the emulator survives app exit.
+    // On Windows, use CREATE_NO_WINDOW | DETACHED_PROCESS so the emulator
+    // is completely silent (no console window) and survives app exit.
     #[cfg(windows)]
     {
-        use std::os::windows::process::CommandExt;
-        cmd.creation_flags(0x00000008); // CREATE_NO_WINDOW is 0x08000000; DETACHED_PROCESS is 0x00000008
+        cmd.creation_flags(0x08000008); // CREATE_NO_WINDOW | DETACHED_PROCESS
     }
 
     cmd.stdin(std::process::Stdio::null())

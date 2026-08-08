@@ -2,7 +2,7 @@ use sysinfo::Disks;
 use tokio::process::Command;
 use tokio::time::{timeout, Duration};
 use serde::{Deserialize, Serialize};
-use crate::commands::CommandResult;
+use crate::commands::{CommandResult, new_command};
 
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -157,7 +157,7 @@ async fn detect_gpus_via_cim_instance() -> Result<Vec<GpuInfo>, String> {
     let ps_command = r#"Get-CimInstance Win32_VideoController | Select-Object Name, AdapterRAM, PNPDeviceID | ConvertTo-Json -Compress"#;
 
     let output = run_command_with_timeout(
-        Command::new("powershell")
+        new_command("powershell")
             .args(["-NoProfile", "-Command", ps_command]),
         "PowerShell GPU CIM query"
     ).await?;
@@ -214,7 +214,7 @@ async fn detect_gpus_via_wmi() -> Result<Vec<GpuInfo>, String> {
     let ps_command = r#"Get-WmiObject Win32_VideoController | Select-Object Name, AdapterRAM, PNPDeviceID | ConvertTo-Json -Compress"#;
 
     let output = run_command_with_timeout(
-        Command::new("powershell")
+        new_command("powershell")
             .args(["-NoProfile", "-Command", ps_command]),
         "PowerShell GPU WMI query"
     ).await?;
@@ -269,7 +269,7 @@ async fn detect_gpus_via_registry() -> Result<Vec<GpuInfo>, String> {
 
     // Step 1: List subkeys under the display driver class.
     let output = run_command_with_timeout(
-        Command::new("reg")
+        new_command("reg")
             .args(["query", base_key]),
         "reg query display driver class"
     ).await?;
@@ -310,7 +310,7 @@ async fn detect_gpus_via_registry() -> Result<Vec<GpuInfo>, String> {
         // missing individual values don't cause the whole query to fail.
         let ctx = format!("reg query {}", subkey);
         let output = run_command_with_timeout(
-            Command::new("reg")
+            new_command("reg")
                 .args(["query", &subkey]),
             ctx.as_str()
         ).await?;
@@ -464,7 +464,7 @@ $results | ConvertTo-Json -Compress
 "#;
 
     let output = run_command_with_timeout(
-        Command::new("powershell")
+        new_command("powershell")
             .args(["-NoProfile", "-Command", ps_command]),
         "PowerShell dotnet WMI VRAM query"
     ).await?;
@@ -573,7 +573,7 @@ async fn check_hypervisor_windows() -> Result<HypervisorStatus, String> {
 #[cfg(target_os = "windows")]
 async fn check_hypervisor_via_wmic() -> Result<HypervisorStatus, String> {
     let output = run_command_with_timeout(
-        Command::new("wmic")
+        new_command("wmic")
             .args(["computersystem", "get", "HypervisorPresent", "/value"]),
         "wmic hypervisor check"
     ).await?;
@@ -596,7 +596,7 @@ async fn check_hypervisor_via_windows_features() -> Result<HypervisorStatus, Str
     // 1. bcdedit: hypervisorlaunchtype must be Auto
     // 2. DISM: HypervisorPlatform feature must be Enabled
     let bcd_output = run_command_with_timeout(
-        Command::new("bcdedit")
+        new_command("bcdedit")
             .args(["/enum"]),
         "bcdedit"
     ).await?;
@@ -612,7 +612,7 @@ async fn check_hypervisor_via_windows_features() -> Result<HypervisorStatus, Str
     eprintln!("[DEBUG] bcdedit launch_auto={}", launch_auto);
 
     let dism_output = run_command_with_timeout(
-        Command::new("dism")
+        new_command("dism")
             .args(["/online", "/Get-FeatureInfo", "/FeatureName:HypervisorPlatform"]),
         "DISM feature check"
     ).await?;

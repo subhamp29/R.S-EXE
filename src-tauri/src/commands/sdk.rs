@@ -28,6 +28,7 @@ use tauri::Window;
 use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
 use tokio::sync::mpsc;
+use crate::commands::new_command;
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -1065,7 +1066,7 @@ fn sdkmanager_command(args: &[&str]) -> Result<Command, String> {
         ));
     }
 
-    let mut cmd = Command::new(&sm);
+    let mut cmd = new_command(&sm);
     for a in args {
         cmd.arg(a);
     }
@@ -1150,7 +1151,7 @@ pub(crate) fn avdmanager_command(args: &[&str]) -> Result<Command, String> {
         ));
     }
 
-    let mut cmd = Command::new(&am);
+    let mut cmd = new_command(&am);
     for a in args {
         cmd.arg(a);
     }
