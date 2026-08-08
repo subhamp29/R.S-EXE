@@ -1,5 +1,39 @@
 # R.S EXE
 
+## About
+
+**R.S EXE** (short for *Rancho Sanctuary EXE*) is a cross-platform desktop application that provides a modern, intuitive graphical interface for the Android SDK Command-line Tools. Built with the Tauri framework — combining a Rust backend with a web-based frontend — it delivers native desktop performance while keeping the install footprint extremely small compared to Electron-based alternatives.
+
+Instead of memorising dozens of `sdkmanager`, `avdmanager`, `emulator`, and `adb` subcommands, users can manage their entire Android development environment from one unified dashboard. Whether you need to install platform-tools, create a virtual device with specific hardware profiles, boot an emulator with custom GPU settings, or capture a screenshot from a running AVD, R.S EXE orchestrates every operation behind a clean, responsive UI.
+
+### Key capabilities
+
+- **SDK package management** — Install/uninstall Android SDK components (JDK, command-line tools, system images, build-tools, platform-tools) with real-time progress tracking.
+- **AVD lifecycle control** — Create, edit, boot, stop, force-stop, and snapshot Android Virtual Devices — all from within the app.
+- **Emulator configuration** — Fine-tune GPU mode (host / host-only / swiftshader / software / none), RAM allocation, and boot options before launching an emulator.
+- **APK management** — Drag-and-drop APK installation, list and launch installed apps, and uninstall packages across connected devices or emulators.
+- **Snapshot management** — Save, restore, and delete emulator snapshots so you can quickly revert to known-good states.
+- **System diagnostics** — Real-time system info panel showing RAM, CPU, GPU details, and hypervisor availability — no command line needed.
+- **Single-instance** — A running instance detects duplicate launches and simply brings the existing window to the foreground.
+- **Portable / offline-ready** — Once the SDK is installed, the app works without an internet connection for day-to-day AVD management.
+
+### Who is this for?
+
+- **Android developers** who want a faster, lighter alternative to Android Studio's built-in AVD Manager.
+- **QA engineers** who need to spin up multiple emulators with different configurations.
+- **CI/CD pipelines** that benefit from scripted SDK and AVD setup in headless environments.
+- **Educators and students** learning Android development who prefer a GUI over the command line.
+
+### Technology stack
+
+| Layer        | Technology                              |
+|--------------|-----------------------------------------|
+| Backend      | Rust 1.85+, Tauri 2, tokio, reqwest     |
+| Frontend     | React / Vite / TypeScript               |
+| Build system | cargo (release profile: LTO fat, strip) |
+| Bundling     | Tauri — NSIS installer, MSI, standalone EXE |
+| Platform     | Windows x64 (primary), with macOS/Linux support via Tauri portability |
+
 **Desktop Android Virtual Device (AVD) Manager** — A cross-platform Tauri desktop application for managing Android SDK packages, creating and launching AVDs, and controlling emulators with advanced features like APK installation, snapshots, and system optimization.
 
 ## Features
