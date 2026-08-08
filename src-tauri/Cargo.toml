@@ -1,6 +1,6 @@
 [package]
 name = "rs-exe"
-version = "0.1.0"
+version = "0.1.1"
 description = "Desktop Android Virtual Device (AVD) Manager"
 authors = ["Subham Mahapatra"]
 license = "MIT"
