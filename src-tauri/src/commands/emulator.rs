@@ -302,16 +302,48 @@ pub async fn boot_avd(window: Window, name: String, options: Option<BootOptions>
     // Ensure the ADB server is running before launching the emulator so that
     // ADB connection is established promptly after boot. Without this, the
     // emulator may wait indefinitely for the ADB daemon.
+    //
+    // We kill any stale ADB server first (it may hold port 5037 in a bad state),
+    // then start a fresh one. A 2s delay gives the daemon time to initialize
+    // before the emulator tries to connect.
     if let Ok(adb) = adb_path() {
         if adb.is_file() {
-            eprintln!("[EMU] boot_avd: starting ADB server...");
+            eprintln!("[EMU] boot_avd: resetting ADB server (kill + start)...");
+            // Kill stale ADB server (ignore errors — server may not be running).
             let _ = new_command(&adb)
-                .arg("start-server")
+                .arg("kill-server")
                 .stdout(Stdio::null())
                 .stderr(Stdio::null())
                 .output()
                 .await;
+            // Start fresh ADB server and capture any errors.
+            match new_command(&adb)
+                .arg("start-server")
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .output()
+                .await
+            {
+                Ok(output) => {
+                    let stderr_str = String::from_utf8_lossy(&output.stderr);
+                    if !output.status.success() {
+                        eprintln!("[EMU] boot_avd: ADB server start failed (exit={}): {}",
+                            output.status.code().unwrap_or(-1), stderr_str);
+                    } else if !stderr_str.is_empty() {
+                        eprintln!("[EMU] boot_avd: ADB server start warning: {}", stderr_str.trim());
+                    } else {
+                        eprintln!("[EMU] boot_avd: ADB server started successfully");
+                    }
+                }
+                Err(e) => {
+                    eprintln!("[EMU] boot_avd: ADB server start error: {}", e);
+                }
+            }
+            // Give the ADB daemon a moment to be ready for connections.
+            tokio::time::sleep(Duration::from_secs(2)).await;
         }
+    } else {
+        eprintln!("[EMU] boot_avd: adb binary not found — ADB connection may fail");
     }
 
              match cmd.spawn() {
@@ -1151,7 +1183,22 @@ fn scan_for_orphan_qemu(avd_name: &str, when: &str) {
 }
 
 fn adb_path() -> Result<PathBuf, String> {
-    Ok(paths::platform_tools_dir().join(if cfg!(windows) { "adb.exe" } else { "adb" }))
+    let sdk_adb = paths::platform_tools_dir().join(if cfg!(windows) { "adb.exe" } else { "adb" });
+    if sdk_adb.is_file() {
+        return Ok(sdk_adb);
+    }
+    // Fallback: search the system PATH for adb. This handles SDKs installed
+    // in non-standard locations that sdk_base() doesn't know about.
+    if let Ok(path_env) = std::env::var("PATH") {
+        for dir in path_env.split(std::path::MAIN_SEPARATOR) {
+            let candidate = std::path::PathBuf::from(dir).join(if cfg!(windows) { "adb.exe" } else { "adb" });
+            if candidate.is_file() {
+                eprintln!("[EMU] adb_path: falling back to system PATH adb at {}", candidate.display());
+                return Ok(candidate);
+            }
+        }
+    }
+    Err(format!("adb not found at {} or in system PATH", sdk_adb.display()))
 }
 
 /// Run `adb devices` and return parsed `(serial, state)` pairs for emulator
@@ -1172,10 +1219,25 @@ async fn adb_emulator_device_states(adb: &PathBuf) -> Vec<(String, String)> {
     .await
     {
         Ok(Ok(o)) if o.status.success() => o,
-        _ => return Vec::new(),
+        Ok(Ok(o)) => {
+            eprintln!("[EMU] adb devices exited with status: {}", o.status);
+            if !o.stderr.is_empty() {
+                eprintln!("[EMU] adb devices stderr: {}", String::from_utf8_lossy(&o.stderr));
+            }
+            return Vec::new();
+        }
+        Ok(Err(e)) => {
+            eprintln!("[EMU] adb devices spawn error: {}", e);
+            return Vec::new();
+        }
+        Err(_) => {
+            eprintln!("[EMU] adb devices timed out after 15s");
+            return Vec::new();
+        }
     };
 
     let stdout = String::from_utf8_lossy(&output.stdout);
+    eprintln!("[EMU] adb devices output: {}", stdout.trim());
     stdout
         .lines()
         .filter_map(|line| {
@@ -1645,10 +1707,10 @@ fn elevate_process_priority(_pid: u32) {}
 /// Spawned concurrently right after emulator process spawn (not after exit),
 /// matching the reference's std::thread::spawn pattern.
 async fn run_speed_mode(window: &Window, avd_name: &str) {
-    // Give the emulator ~4 seconds to start accepting connections before we
-    // start hammering it with adb commands. This matches the reference
-    // implementation's sleep-before-adb pattern.
-    tokio::time::sleep(Duration::from_secs(4)).await;
+    // Give the emulator ~10 seconds to start accepting connections before we
+    // start polling ADB. The emulator process needs time to initialize its
+    // QEMU backend and register its console port with the ADB server.
+    tokio::time::sleep(Duration::from_secs(10)).await;
 
     let _ = window.emit(
         EVT_LOG,
